@@ -6,8 +6,8 @@ ENABLE_WIND = False
 WIND_POWER = 15.0
 TURBULENCE_POWER = 0.0
 GRAVITY = -10.0
-RENDER_MODE = 'human'
-#RENDER_MODE = None #seleccione esta opção para não visualizar o ambiente (testes mais rápidos)
+#RENDER_MODE = 'human'
+RENDER_MODE = None #seleccione esta opção para não visualizar o ambiente (testes mais rápidos)
 EPISODES = 1000
 
 env = gym.make("LunarLander-v3", render_mode =RENDER_MODE, 
@@ -56,15 +56,84 @@ def simulate(steps=1000,seed=None, policy = None):
 #Perceptions
 ##TODO: Defina as suas perceções aqui
 
+def get_perceptions(observation):
+    x, y, vx, vy, theta, v_theta, leg_l, leg_r = observation
+
+    theta_deg = np.rad2deg(theta)
+
+    perceptions = {
+        # Posição Horizontal 
+        "X_left": x < -0.2,
+        "X_right": x > 0.2,
+        "X_center": -0.2 <= x <= 0.2,
+        
+        # Posição Vertical 
+        "Y_high": y > 0.5, # Ajustado para definir "longe" do solo
+        "Y_low": y <= 0.5,
+        
+        # Velocidade 
+        "Vx_positive": vx > 0.05,
+        "Vx_negative": vx < -0.05,
+        "Vy_unstable": vy < -0.2,
+        "Vy_stable": vy >= -0.2,
+        "Ve_clockwise": v_theta < -0.05,
+        "Ve_anti_clockwise": v_theta > 0.05,
+        
+        # Orientação 
+        "Theta_positive": theta_deg > 18, # Margem de segurança [cite: 59]
+        "Theta_negative": theta_deg < -18,
+        
+        # Tocar no chão 
+        "contact_left": bool(leg_l),
+        "contact_right": bool(leg_r),
+        "legs_touching": bool(leg_l and leg_r)
+    }
+    return perceptions
+
 #Actions
 ##TODO: Defina as suas ações aqui
 
+def action_rotate_right(): return np.array([0.0, 1.0])  # R_right 
+def action_rotate_left():  return np.array([0.0, -1.0]) # R_left 
+def action_main_motor():   return np.array([1.0, 0.0])  # Main_Motor 
+def action_do_nothing():   return np.array([0.0, 0.0])  # Do_nothing 
+
+
 
 def reactive_agent(observation):
-    ##TODO: Implemente aqui o seu agente reativo
-    ##Substitua a linha abaixo pela sua implementação
-    action = env.action_space.sample()
-    return action 
+    p = get_perceptions(observation)
+    
+    # Se ambas as pernas tocam, desliga motores [cite: 47]
+    if p["legs_touching"]:
+        return action_do_nothing()
+    
+    # Estabilização de contacto lateral [cite: 48, 49]
+    if p["contact_right"]: return action_rotate_left()
+    if p["contact_left"]:  return action_rotate_right()
+    
+    # Controlo de inclinação crítica [cite: 50, 51]
+    if p["Theta_positive"]: return action_rotate_right()
+    if p["Theta_negative"]: return action_rotate_left()
+    
+    # Controlo de velocidade angular [cite: 52, 53]
+    if p["Ve_clockwise"]:      return action_rotate_left()
+    if p["Ve_anti_clockwise"]: return action_rotate_right()
+    
+    # Queda demasiado rápida [cite: 54]
+    if p["Vy_unstable"]:
+        return action_main_motor()
+    
+    # Correção de deriva horizontal [cite: 55, 56]
+    if p["X_left"] and p["Vx_negative"]:
+        return action_rotate_right()
+    if p["X_right"] and p["Vx_positive"]:
+        return action_rotate_left()
+        
+    # Descida estável no centro [cite: 57]
+    if p["Y_high"] and p["X_center"] and p["Vy_stable"]:
+        return action_do_nothing()
+
+    return action_do_nothing()
     
     
 def keyboard_agent(observation):
