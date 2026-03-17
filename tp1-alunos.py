@@ -76,8 +76,8 @@ def get_perceptions(observation):
         "Vx_negative": vx < -0.05,
         "Vy_unstable": vy < -0.2,
         "Vy_stable": vy >= -0.2,
-        "Ve_clockwise": v_theta < -0.05,
-        "Ve_anti_clockwise": v_theta > 0.05,
+        "Vθ_clockwise": v_theta < -0.05,
+        "Vθ_anti_clockwise": v_theta > 0.05,
         
         # Orientação 
         "Theta_positive": theta_deg > 18, # Margem de segurança [cite: 59]
@@ -116,8 +116,8 @@ def reactive_agent(observation):
     if p["Theta_negative"]: return action_rotate_left()
     
     # Controlo de velocidade angular [cite: 52, 53]
-    if p["Ve_clockwise"]:      return action_rotate_left()
-    if p["Ve_anti_clockwise"]: return action_rotate_right()
+    if p["Vθ_clockwise"]:      return action_rotate_left()
+    if p["Vθ_anti_clockwise"]: return action_rotate_right()
     
     # Queda demasiado rápida [cite: 54]
     if p["Vy_unstable"]:
