@@ -2,7 +2,7 @@ import gymnasium as gym
 import numpy as np
 import pygame
 
-ENABLE_WIND = False
+ENABLE_WIND = True
 WIND_POWER = 15.0
 TURBULENCE_POWER = 0.0
 GRAVITY = -10.0
@@ -61,35 +61,70 @@ def get_perceptions(observation):
 
     theta_deg = np.rad2deg(theta)
 
-    perceptions = {
-        #posição Horizontal 
-        "X_left": x < -0.1,
-        "X_right": x > 0.1,
-        "X_center": -0.1 <= x <= 0.1,
-        
-        #posição Vertical 
-        "Y_high": y > 0.3, # Ajustado para definir "longe" do solo
-        "Y_low": y <= 0.3,
-        
-        #velocidade 
-        "Vx_positive": vx > 0.05,
-        "Vx_negative": vx < -0.05,
-        "Vx_very_positive": vx > 0.15,
-        "Vx_very_negative": vx < -0.15,
-        "Vy_unstable": vy < -0.1,
-        "Vy_stable": vy >= -0.1,
-        "Vθ_clockwise": v_theta < -0.05,
-        "Vθ_anti_clockwise": v_theta > 0.05,
-        
-        #orientação 
-        "Theta_positive": theta_deg > 8, # Margem de segurança 
-        "Theta_negative": theta_deg < -8,
-        
-        #tocar no chão 
-        "contact_left": bool(leg_l),
-        "contact_right": bool(leg_r),
-        "legs_touching": bool(leg_l and leg_r)
-    }
+    if ENABLE_WIND:
+        perceptions = {
+            # Posição: Limites mais apertados para não a deixar fugir do "funil"
+            "X_left": x < -0.1,
+            "X_right": x > 0.1,
+            "X_center": -0.1 <= x <= 0.1,
+            
+            "Y_high": y > 0.4,
+            "Y_low": y <= 0.4,
+            
+            # O SEGREDO DO VENTO: Reagir a derivas minúsculas (0.05)
+            "Vx_positive": vx > 0.05, 
+            "Vx_negative": vx < -0.05, 
+            "Vx_very_positive": vx > 0.15,
+            "Vx_very_negative": vx < -0.15,
+            
+            # Combater a queda em diagonal travando mais cedo
+            "Vy_unstable": vy < -0.4, 
+            "Vy_stable": vy >= -0.4,
+            
+            # Rotação hiper-sensível para o vento não capotar a nave
+            "Vθ_clockwise": v_theta < -0.05,
+            "Vθ_anti_clockwise": v_theta > 0.05,
+            
+            # Não a deixar inclinar mais de 5 graus (antes era 10)
+            "Theta_positive": theta_deg > 5, 
+            "Theta_negative": theta_deg < -5,
+            
+            # Manter a lógica de aterragem de "basta 1 perna para cortar motores"
+            "contact_left": bool(leg_l),
+            "contact_right": bool(leg_r),
+            "legs_touching": bool(leg_l or leg_r)
+        }
+    else:
+        perceptions = {
+            #posição Horizontal 
+            "X_left": x < -0.1,
+            "X_right": x > 0.1,
+            "X_center": -0.1 <= x <= 0.1,
+            
+            #posição Vertical 
+            "Y_high": y > 0.3, # Ajustado para definir "longe" do solo
+            "Y_low": y <= 0.3,
+            
+            #velocidade 
+            "Vx_positive": vx > 0.05,
+            "Vx_negative": vx < -0.05,
+            "Vx_very_positive": vx > 0.15,
+            "Vx_very_negative": vx < -0.15,
+            "Vy_unstable": vy < -0.1,
+            "Vy_stable": vy >= -0.1,
+            "Vθ_clockwise": v_theta < -0.05,
+            "Vθ_anti_clockwise": v_theta > 0.05,
+            
+            #orientação 
+            "Theta_positive": theta_deg > 8, # Margem de segurança 
+            "Theta_negative": theta_deg < -8,
+            
+            #tocar no chão 
+            "contact_left": bool(leg_l),
+            "contact_right": bool(leg_r),
+            "legs_touching": bool(leg_l and leg_r)
+        }
+
     return perceptions
 
 #Actions
