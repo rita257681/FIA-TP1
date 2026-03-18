@@ -2,12 +2,12 @@ import gymnasium as gym
 import numpy as np
 import pygame
 
-ENABLE_WIND = False
+ENABLE_WIND = True
 WIND_POWER = 15.0
 TURBULENCE_POWER = 0.0
 GRAVITY = -10.0
-#RENDER_MODE = 'human'
-RENDER_MODE = None #seleccione esta opção para não visualizar o ambiente (testes mais rápidos)
+RENDER_MODE = 'human'
+#RENDER_MODE = None #seleccione esta opção para não visualizar o ambiente (testes mais rápidos)
 EPISODES = 1000
 
 env = gym.make("LunarLander-v3", render_mode =RENDER_MODE, 
@@ -74,14 +74,16 @@ def get_perceptions(observation):
         # Velocidade 
         "Vx_positive": vx > 0.05,
         "Vx_negative": vx < -0.05,
-        "Vy_unstable": vy < -0.2,
-        "Vy_stable": vy >= -0.2,
+        "Vx_very_positive": vx > 0.15,
+        "Vx_very_negative": vx < -0.15,
+        "Vy_unstable": vy < -0.05,
+        "Vy_stable": vy >= -0.05,
         "Vθ_clockwise": v_theta < -0.05,
         "Vθ_anti_clockwise": v_theta > 0.05,
         
         # Orientação 
-        "Theta_positive": theta_deg > 18, # Margem de segurança [cite: 59]
-        "Theta_negative": theta_deg < -18,
+        "Theta_positive": theta_deg > 10, # Margem de segurança 
+        "Theta_negative": theta_deg < -10,
         
         # Tocar no chão 
         "contact_left": bool(leg_l),
@@ -103,33 +105,38 @@ def action_do_nothing():   return np.array([0.0, 0.0])  # Do_nothing
 def reactive_agent(observation):
     p = get_perceptions(observation)
     
-    # Se ambas as pernas tocam, desliga motores [cite: 47]
+    # Se ambas as pernas tocam, desliga motores 
     if p["legs_touching"]:
         return action_do_nothing()
     
-    # Estabilização de contacto lateral [cite: 48, 49]
+    # Estabilização de contacto lateral
     if p["contact_right"]: return action_rotate_left()
     if p["contact_left"]:  return action_rotate_right()
     
-    # Controlo de inclinação crítica [cite: 50, 51]
+    # Controlo de inclinação crítica 
     if p["Theta_positive"]: return action_rotate_right()
     if p["Theta_negative"]: return action_rotate_left()
     
-    # Controlo de velocidade angular [cite: 52, 53]
+    # Controlo de velocidade angular 
     if p["Vθ_clockwise"]:      return action_rotate_left()
     if p["Vθ_anti_clockwise"]: return action_rotate_right()
     
-    # Queda demasiado rápida [cite: 54]
+    # Queda demasiado rápida 
     if p["Vy_unstable"]:
         return action_main_motor()
     
-    # Correção de deriva horizontal [cite: 55, 56]
+    if p["Vx_very_positive"]:
+        return action_rotate_left()
+    if p["Vx_very_negative"]:
+        return action_rotate_right()
+    
+    # Correção de deriva horizontal 
     if p["X_left"] and p["Vx_negative"]:
         return action_rotate_right()
     if p["X_right"] and p["Vx_positive"]:
         return action_rotate_left()
         
-    # Descida estável no centro [cite: 57]
+    # Descida estável no centro
     if p["Y_high"] and p["X_center"] and p["Vy_stable"]:
         return action_do_nothing()
 
