@@ -141,7 +141,7 @@ def reactive_agent(observation):
     # 5. Queda demasiado rápida 
     if p["Vy_unstable"]:
         action += action_main_motor()
-        
+    
     # 6. Descida estável no centro
     if p["Y_high"] and p["X_center"] and p["Vy_stable"]:
         pass # action já é [0.0, 0.0]
@@ -163,7 +163,6 @@ def keyboard_agent(observation):
         action =+ np.array([0,1])
 
     return action
-    
 
 success = 0.0               # taxa de sucesso
 steps = 0.0                 # passos médios por aterragem bem sucedida
