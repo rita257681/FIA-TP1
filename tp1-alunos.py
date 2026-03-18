@@ -2,12 +2,12 @@ import gymnasium as gym
 import numpy as np
 import pygame
 
-ENABLE_WIND = True
+ENABLE_WIND = False
 WIND_POWER = 15.0
 TURBULENCE_POWER = 0.0
 GRAVITY = -10.0
-RENDER_MODE = 'human'
-#RENDER_MODE = None #seleccione esta opção para não visualizar o ambiente (testes mais rápidos)
+#RENDER_MODE = 'human'
+RENDER_MODE = None #seleccione esta opção para não visualizar o ambiente (testes mais rápidos)
 EPISODES = 1000
 
 env = gym.make("LunarLander-v3", render_mode =RENDER_MODE, 
@@ -62,30 +62,30 @@ def get_perceptions(observation):
     theta_deg = np.rad2deg(theta)
 
     perceptions = {
-        # Posição Horizontal 
-        "X_left": x < -0.2,
-        "X_right": x > 0.2,
-        "X_center": -0.2 <= x <= 0.2,
+        #posição Horizontal 
+        "X_left": x < -0.1,
+        "X_right": x > 0.1,
+        "X_center": -0.1 <= x <= 0.1,
         
-        # Posição Vertical 
-        "Y_high": y > 0.5, # Ajustado para definir "longe" do solo
-        "Y_low": y <= 0.5,
+        #posição Vertical 
+        "Y_high": y > 0.3, # Ajustado para definir "longe" do solo
+        "Y_low": y <= 0.3,
         
-        # Velocidade 
+        #velocidade 
         "Vx_positive": vx > 0.05,
         "Vx_negative": vx < -0.05,
         "Vx_very_positive": vx > 0.15,
         "Vx_very_negative": vx < -0.15,
-        "Vy_unstable": vy < -0.05,
-        "Vy_stable": vy >= -0.05,
+        "Vy_unstable": vy < -0.1,
+        "Vy_stable": vy >= -0.1,
         "Vθ_clockwise": v_theta < -0.05,
         "Vθ_anti_clockwise": v_theta > 0.05,
         
-        # Orientação 
-        "Theta_positive": theta_deg > 10, # Margem de segurança 
-        "Theta_negative": theta_deg < -10,
+        #orientação 
+        "Theta_positive": theta_deg > 8, # Margem de segurança 
+        "Theta_negative": theta_deg < -8,
         
-        # Tocar no chão 
+        #tocar no chão 
         "contact_left": bool(leg_l),
         "contact_right": bool(leg_r),
         "legs_touching": bool(leg_l and leg_r)
@@ -104,44 +104,50 @@ def action_do_nothing():   return np.array([0.0, 0.0])  # Do_nothing
 
 def reactive_agent(observation):
     p = get_perceptions(observation)
-    
-    # Se ambas as pernas tocam, desliga motores 
-    if p["legs_touching"]:
-        return action_do_nothing()
-    
-    # Estabilização de contacto lateral
-    if p["contact_right"]: return action_rotate_left()
-    if p["contact_left"]:  return action_rotate_right()
-    
-    # Controlo de inclinação crítica 
-    if p["Theta_positive"]: return action_rotate_right()
-    if p["Theta_negative"]: return action_rotate_left()
-    
-    # Controlo de velocidade angular 
-    if p["Vθ_clockwise"]:      return action_rotate_left()
-    if p["Vθ_anti_clockwise"]: return action_rotate_right()
-    
-    # Queda demasiado rápida 
-    if p["Vy_unstable"]:
-        return action_main_motor()
-    
-    if p["Vx_very_positive"]:
-        return action_rotate_left()
-    if p["Vx_very_negative"]:
-        return action_rotate_right()
-    
-    # Correção de deriva horizontal 
-    if p["X_left"] and p["Vx_negative"]:
-        return action_rotate_right()
-    if p["X_right"] and p["Vx_positive"]:
-        return action_rotate_left()
-        
-    # Descida estável no centro
-    if p["Y_high"] and p["X_center"] and p["Vy_stable"]:
-        return action_do_nothing()
+    action = np.array([0.0, 0.0])
 
-    return action_do_nothing()
+    # 1. Se ambas as pernas tocam, desliga motores 
+    if p["legs_touching"]:
+        return action
     
+    # 2. Estabilização de contacto lateral
+    if p["contact_right"] or p["contact_left"]:
+        if p["contact_right"] and not p["contact_left"]:
+            action += action_rotate_left()
+        if p["contact_left"] and not p["contact_right"]:
+            action += action_rotate_right()
+        return np.clip(action, -1.0, 1.0)   # não deixa descer para Vy_unstable
+    
+    # 3. Controlo de inclinação crítica 
+    if p["Theta_positive"]:
+        action += action_rotate_right()
+    elif p["Theta_negative"]:
+        action += action_rotate_left()
+    elif p["Vθ_clockwise"]:      
+        action += action_rotate_left()
+    elif p["Vθ_anti_clockwise"]: 
+        action += action_rotate_right()
+    
+    # 4. Correção de derrapagem e deriva horizontal
+    if p["Vx_very_positive"]:
+        action += action_rotate_left()
+    elif p["Vx_very_negative"]:
+        action += action_rotate_right()
+    elif p["X_left"] and p["Vx_negative"]:
+        action += action_rotate_right()
+    elif p["X_right"] and p["Vx_positive"]:
+        action += action_rotate_left()
+
+    # 5. Queda demasiado rápida 
+    if p["Vy_unstable"]:
+        action += action_main_motor()
+        
+    # 6. Descida estável no centro
+    if p["Y_high"] and p["X_center"] and p["Vy_stable"]:
+        pass # action já é [0.0, 0.0]
+
+    action = np.clip(action, -1.0, 1.0)
+    return action
     
 def keyboard_agent(observation):
     action = [0,0] 
