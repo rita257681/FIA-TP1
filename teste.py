@@ -38,17 +38,17 @@ def check_successful_landing(observation):
     print("Aterragem falhada!")        
     return False
         
-def simulate(steps=1000,seed=None, policy = None): 
-    observ, _ = env.reset(seed=seed)        # reset do ambiente para obter uma observacão inicial   
-    for step in range(steps):               # ciclo de simulacao
-        action = policy(observ)             # chamada a funcao do agente: a partir da observação, produz a acao a executar
+def simulate(steps=1000,seed=None, policy = None):    
+    observ, _ = env.reset(seed=seed)
+    for step in range(steps):
+        action = policy(observ)
 
-        observ, _, term, trunc, _ = env.step(action)    # executa a acao, retorna nova observacao do ambiente e info sobre termina da simulacao
+        observ, _, term, trunc, _ = env.step(action)
 
         if term or trunc:
             break
 
-    success = check_successful_landing(observ)  # verifica o sucesso da aterragem; retorna tambem o numero de passos utilizados
+    success = check_successful_landing(observ)
     return step, success
 
 
@@ -172,7 +172,7 @@ def reactive_agent(observation):
     return np.clip(action, -1.0, 1.0)
 
 
-    
+     
 def keyboard_agent(observation):
     action = [0,0] 
     keys = pygame.key.get_pressed()
@@ -187,9 +187,10 @@ def keyboard_agent(observation):
         action =+ np.array([0,1])
 
     return action
+    
 
-success = 0.0               # taxa de sucesso
-steps = 0.0                 # passos médios por aterragem bem sucedida
+success = 0.0
+steps = 0.0
 for i in range(EPISODES):
     st, su = simulate(steps=1000000, policy=reactive_agent)
 
@@ -200,3 +201,4 @@ for i in range(EPISODES):
     if su>0:
         print('Média de passos das aterragens bem sucedidas:', steps/success*100)
     print('Taxa de sucesso:', success/(i+1)*100)
+    
