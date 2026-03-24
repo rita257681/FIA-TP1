@@ -2,12 +2,12 @@ import gymnasium as gym
 import numpy as np
 import pygame
 
-ENABLE_WIND = True
+ENABLE_WIND = False
 WIND_POWER = 15.0
 TURBULENCE_POWER = 0.0
 GRAVITY = -10.0
-RENDER_MODE = 'human'
-#RENDER_MODE = None #seleccione esta opção para não visualizar o ambiente (testes mais rápidos)
+#RENDER_MODE = 'human'
+RENDER_MODE = None #seleccione esta opção para não visualizar o ambiente (testes mais rápidos)
 EPISODES = 1000
 
 env = gym.make("LunarLander-v3", render_mode =RENDER_MODE, 
@@ -52,45 +52,73 @@ def simulate(steps=1000,seed=None, policy = None):
     return step, success
 
 
-
 #Perceptions
 ##TODO: Defina as suas perceções aqui
 
 def get_perceptions(observation):
     x, y, vx, vy, theta, v_theta, leg_l, leg_r = observation
-
     theta_deg = np.rad2deg(theta)
 
-    perceptions = {
-        # Posição Horizontal 
-        "X_left": x < -0.2,
-        "X_right": x > 0.2,
-        "X_center": -0.2 <= x <= 0.2,
-        
-        # Posição Vertical 
-        "Y_high": y > 0.5, # Ajustado para definir "longe" do solo
-        "Y_low": y <= 0.5,
-        
-        # Velocidade 
-        "Vx_positive": vx > 0.05,
-        "Vx_negative": vx < -0.05,
-        "Vx_very_positive": vx > 0.15,
-        "Vx_very_negative": vx < -0.15,
-        "Vy_unstable": vy < -0.05,
-        "Vy_stable": vy >= -0.05,
-        "Vθ_clockwise": v_theta < -0.05,
-        "Vθ_anti_clockwise": v_theta > 0.05,
-        
-        # Orientação 
-        "Theta_positive": theta_deg > 10, # Margem de segurança 
-        "Theta_negative": theta_deg < -10,
-        
-        # Tocar no chão 
-        "contact_left": bool(leg_l),
-        "contact_right": bool(leg_r),
-        "legs_touching": bool(leg_l and leg_r)
-    }
+    # Identificar a direção da correção necessária
+    # Se x > 0.05 e vx > 0, a nave está a fugir para a direita
+    moving_away_right = x > 0.05 and vx > 0
+    moving_away_left = x < -0.05 and vx < 0
+    
+    # Se x > 0.1 e vx < -0.05, a nave já está a recuperar
+    correcting_to_center = (x > 0.1 and vx < -0.05) or (x < -0.1 and vx > 0.05)
+
+    if ENABLE_WIND:
+        perceptions = {
+            "X_left": x < -0.1,
+            "X_right": x > 0.1,
+            "Y_high": y > 0.5, # Melhor valor encontrado
+            "Y_low": y <= 0.5,
+            
+            # Vento exige reação a velocidades muito baixas para evitar inércia
+            "Vx_drifting_right": vx > 0.05, # Melhor valor encontrado
+            "Vx_drifting_left": vx < -0.05,
+            "Vx_very_fast": abs(vx) > 0.2,
+            
+            "Vy_unstable": vy < -0.4, # Melhor valor encontrado
+            "Vy_stable": vy >= -0.4,
+            
+            "Vθ_clockwise": v_theta < -0.07, # Melhor valor encontrado
+            "Vθ_anti_clockwise": v_theta > 0.07,
+            
+            "Theta_positive": theta_deg > 5, # Melhor valor encontrado
+            "Theta_negative": theta_deg < -5,
+            
+            "contact_left": bool(leg_l),
+            "contact_right": bool(leg_r),
+            "legs_touching": bool(leg_l or leg_r),
+            "moving_away": moving_away_right or moving_away_left,
+            "correcting": correcting_to_center
+        }
+    else:
+        perceptions = {
+            "X_left": x < -0.1, # Melhor valor encontrado
+            "X_right": x > 0.1,
+            "Y_high": y > 0.5, # Melhor valor encontrado
+            "Y_low": y <= 0.5,
+            "Vx_drifting_right": vx > 0.06, # Melhor valor encontrado
+            "Vx_drifting_left": vx < -0.06,
+            "Vx_very_fast": abs(vx) > 0.20, # Melhor valor encontrado
+            "Vy_unstable": vy < -0.1, # Melhor valor encontrado
+            "Vy_stable": vy >= -0.1,
+            "Vθ_clockwise": v_theta < -0.07, # Melhor valor encontrado
+            "Vθ_anti_clockwise": v_theta > 0.07,
+            "Theta_positive": theta_deg > 7, # Melhor valor encontrado
+            "Theta_negative": theta_deg < -7,
+            "contact_left": bool(leg_l),
+            "contact_right": bool(leg_r),
+            "legs_touching": bool(leg_l and leg_r),
+            "moving_away": moving_away_right or moving_away_left,
+            "correcting": correcting_to_center
+        }
+
     return perceptions
+
+
 
 #Actions
 ##TODO: Defina as suas ações aqui
@@ -98,50 +126,52 @@ def get_perceptions(observation):
 def action_rotate_right(): return np.array([0.0, 1.0])  # R_right 
 def action_rotate_left():  return np.array([0.0, -1.0]) # R_left 
 def action_main_motor():   return np.array([1.0, 0.0])  # Main_Motor 
-def action_do_nothing():   return np.array([0.0, 0.0])  # Do_nothing 
-
+def action_do_nothing():   return np.array([0.0, 0.0])  # Idle  
 
 
 def reactive_agent(observation):
     p = get_perceptions(observation)
-    
-    # Se ambas as pernas tocam, desliga motores 
+    action = np.array([0.0, 0.0])
+
+    # 1. Condição de paragem (Aterragem) [cite: 48, 120]
     if p["legs_touching"]:
         return action_do_nothing()
-    
-    # Estabilização de contacto lateral
-    if p["contact_right"]: return action_rotate_left()
-    if p["contact_left"]:  return action_rotate_right()
-    
-    # Controlo de inclinação crítica 
-    if p["Theta_positive"]: return action_rotate_right()
-    if p["Theta_negative"]: return action_rotate_left()
-    
-    # Controlo de velocidade angular 
-    if p["Vθ_clockwise"]:      return action_rotate_left()
-    if p["Vθ_anti_clockwise"]: return action_rotate_right()
-    
-    # Queda demasiado rápida 
-    if p["Vy_unstable"]:
-        return action_main_motor()
-    
-    if p["Vx_very_positive"]:
-        return action_rotate_left()
-    if p["Vx_very_negative"]:
-        return action_rotate_right()
-    
-    # Correção de deriva horizontal 
-    if p["X_left"] and p["Vx_negative"]:
-        return action_rotate_right()
-    if p["X_right"] and p["Vx_positive"]:
-        return action_rotate_left()
-        
-    # Descida estável no centro
-    if p["Y_high"] and p["X_center"] and p["Vy_stable"]:
-        return action_do_nothing()
 
-    return action_do_nothing()
+    # 2. Prioridade Máxima: Estabilização de Ângulo e Velocidade Angular [cite: 47, 62]
+    # Se a nave estiver a rodar ou inclinada, os motores laterais corrigem primeiro
+    if p["Theta_positive"]:
+        action += action_rotate_right()
+    elif p["Theta_negative"]:
+        action += action_rotate_left()
     
+    # Se não estiver inclinada mas tiver velocidade angular, estabiliza
+    elif p["Vθ_clockwise"]:      
+        action += action_rotate_left()
+    elif p["Vθ_anti_clockwise"]: 
+        action += action_rotate_right()
+
+    # 3. Controlo Horizontal (Combate ao Vento e Deriva) [cite: 58, 63]
+    # Se estiver a fugir do centro ou com velocidade lateral excessiva
+    if not p["correcting"]:
+        if p["Vx_drifting_right"]:
+            action += action_rotate_left() # Inclina para a esquerda para travar
+        elif p["Vx_drifting_left"]:
+            action += action_rotate_right() # Inclina para a direita para travar
+
+    # 4. Controlo Vertical (Motor Principal) [cite: 42, 59]
+    # Ativa o motor se a queda for instável OU se estivermos a usar a inclinação para travar lateralmente
+    if p["Vy_unstable"] or (p["Vx_very_fast"] and p["Y_low"]):
+        action += action_main_motor()
+
+    # 5. Segurança de Contacto (Garantir verticalidade no toque final) [cite: 106]
+    if p["contact_right"] and not p["contact_left"]:
+        action += action_rotate_left()
+    elif p["contact_left"] and not p["contact_right"]:
+        action += action_rotate_right()
+
+    return np.clip(action, -1.0, 1.0)
+
+
     
 def keyboard_agent(observation):
     action = [0,0] 
@@ -157,7 +187,6 @@ def keyboard_agent(observation):
         action =+ np.array([0,1])
 
     return action
-    
 
 success = 0.0               # taxa de sucesso
 steps = 0.0                 # passos médios por aterragem bem sucedida
@@ -171,4 +200,3 @@ for i in range(EPISODES):
     if su>0:
         print('Média de passos das aterragens bem sucedidas:', steps/success*100)
     print('Taxa de sucesso:', success/(i+1)*100)
-    
