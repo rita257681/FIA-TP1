@@ -4,10 +4,10 @@ Este repositório contém o Trabalho Prático da disciplina de Fundamentos de In
 
 ## Equipa
 
-* **João Oliveira**: Nº de estudante 2023214320 (Turma Prática: PL8, Email: uc2023214320@student.uc.pt).
+* **João Oliveira**
 
 
-* **Rita Ramos**: Nº de estudante 2022257681 (Turma Prática: PL8, Email: uc2022257681@student.uc.pt).
+* **Rita Ramos**
 
 
 
